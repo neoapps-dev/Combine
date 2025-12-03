@@ -1,4 +1,3 @@
-```
 Combine Engine
 =============
 
@@ -27,4 +26,3 @@ For detailed information, refer to the source code. because I'm too lazy to make
 License:
 --------
 The Combine Engine is licensed under the Apache 2.0 License.
-```
