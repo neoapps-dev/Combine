@@ -38,6 +38,17 @@ scriptedCube.color.r = 1.0
 scriptedCube.color.g = 0.5
 scriptedCube.color.b = 0.0
 addEntity(scriptedCube)
+global ground = createCube("ground")
+ground.transform.position.x = 0
+ground.transform.position.y = -60
+ground.transform.position.z = 0
+ground.transform.scale.x = 99999
+ground.transform.scale.y = 5
+ground.transform.scale.z = 99999
+ground.color.r = 0.0
+ground.color.g = 0.0
+ground.color.b = 0.0
+addEntity(ground)
 global orbitSphere = createSphere("OrbitSphere", 16, 16)
 orbitSphere.transform.scale.x = 0.3
 orbitSphere.transform.scale.y = 0.3
