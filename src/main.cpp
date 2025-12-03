@@ -40,7 +40,7 @@ namespace Combine {
 }
 
 int main() {
-    std::cout << "~~> Combine Engine" << std::endl;
+    std::cout << "~~> Made With Combine" << std::endl;
     Combine::Engine engine;
     Combine::g_engine = &engine;
     engine.setRenderer(std::make_unique<Combine::COMBINE_RENDERER_CLASS>());

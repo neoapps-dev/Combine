@@ -665,7 +665,7 @@ public:
     virtual int getHeight() const = 0;
     virtual void setVSync(bool enabled) = 0;
     virtual void setWireframe(bool enabled) = 0;
-    virtual bool loadShader(const std::string& name, const std::string& vertexPath, const std::string& fragmentPath) = 0;
+    virtual bool loadShader(const std::string& name, const std::string& vertexPath, const std::string& fragmentPath, const std::string& geometryPath = "") = 0;
     virtual void useShader(const std::string& name) = 0;
 };
 

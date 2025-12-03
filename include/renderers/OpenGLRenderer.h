@@ -63,6 +63,15 @@ private:
     std::unordered_map<unsigned int, MeshBuffers> meshBufferCache;
     std::unordered_map<std::string, Texture> textureCache;
     std::unordered_map<std::string, GLuint> shaderPrograms;
+    struct UniformLocations {
+        GLint model = -1, view = -1, projection = -1;
+        GLint normalMatrix = -1, viewPos = -1, time = -1;
+        GLint meshColor = -1, ambientColor = -1;
+        GLint uHasTexture = -1, uTextureSampler = -1;
+        GLint numLights = -1;
+        GLint lights[8][9];
+    };
+    std::unordered_map<GLuint, UniformLocations> uniformCache;
     unsigned int nextMeshId = 1;
     const char* vertexShaderSource = R"(
         #version 330 core
@@ -189,16 +198,24 @@ private:
         Input::instance().setScrollDelta(static_cast<float>(xoffset), static_cast<float>(yoffset));
     }
 
-    GLuint compileShader(GLenum type, const char* source) {
+    GLuint compileShader(GLenum type, const char* source, const char* filename = "") {
         GLuint shader = glCreateShader(type);
         glShaderSource(shader, 1, &source, nullptr);
         glCompileShader(shader);
         GLint success;
         glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
         if (!success) {
-            char infoLog[512];
-            glGetShaderInfoLog(shader, 512, nullptr, infoLog);
-            std::cerr << "Shader compilation error: " << infoLog << std::endl;
+            char infoLog[1024];
+            glGetShaderInfoLog(shader, 1024, nullptr, infoLog);
+            std::string shaderType = (type == GL_VERTEX_SHADER) ? "VERTEX" : 
+                                   (type == GL_FRAGMENT_SHADER) ? "FRAGMENT" : "GEOMETRY";
+            std::cerr << "ERROR::SHADER::" << shaderType << "::COMPILATION_FAILED\n";
+            if (filename && strlen(filename) > 0) {
+                std::cerr << "File: " << filename << "\n";
+            }
+            std::cerr << infoLog << std::endl;
+            glDeleteShader(shader);
+            return 0;
         }
 
         return shader;
@@ -263,6 +280,36 @@ private:
 
         meshBufferCache[mesh->renderId] = buffers;
         mesh->dirty = false;
+    }
+
+    void cacheUniformLocations(GLuint program) {
+        UniformLocations uniforms;
+        uniforms.model = glGetUniformLocation(program, "model");
+        uniforms.view = glGetUniformLocation(program, "view");
+        uniforms.projection = glGetUniformLocation(program, "projection");
+        uniforms.normalMatrix = glGetUniformLocation(program, "normalMatrix");
+        uniforms.viewPos = glGetUniformLocation(program, "viewPos");
+        uniforms.time = glGetUniformLocation(program, "time");
+        uniforms.meshColor = glGetUniformLocation(program, "meshColor");
+        uniforms.ambientColor = glGetUniformLocation(program, "ambientColor");
+        uniforms.uHasTexture = glGetUniformLocation(program, "uHasTexture");
+        uniforms.uTextureSampler = glGetUniformLocation(program, "uTextureSampler");
+        uniforms.numLights = glGetUniformLocation(program, "numLights");
+        
+        for (int i = 0; i < 8; i++) {
+            std::string prefix = "lights[" + std::to_string(i) + "].";
+            uniforms.lights[i][0] = glGetUniformLocation(program, (prefix + "type").c_str());
+            uniforms.lights[i][1] = glGetUniformLocation(program, (prefix + "position").c_str());
+            uniforms.lights[i][2] = glGetUniformLocation(program, (prefix + "direction").c_str());
+            uniforms.lights[i][3] = glGetUniformLocation(program, (prefix + "color").c_str());
+            uniforms.lights[i][4] = glGetUniformLocation(program, (prefix + "intensity").c_str());
+            uniforms.lights[i][5] = glGetUniformLocation(program, (prefix + "range").c_str());
+            uniforms.lights[i][6] = glGetUniformLocation(program, (prefix + "spotAngle").c_str());
+            uniforms.lights[i][7] = glGetUniformLocation(program, (prefix + "constant").c_str());
+            uniforms.lights[i][8] = glGetUniformLocation(program, (prefix + "linear").c_str());
+        }
+        
+        uniformCache[program] = uniforms;
     }
 
     GLuint loadTexture(const std::string& filepath) {
@@ -340,8 +387,8 @@ public:
         glEnable(GL_CULL_FACE);
         glCullFace(GL_BACK);
         glFrontFace(GL_CCW);
-        GLuint vertexShader = compileShader(GL_VERTEX_SHADER, vertexShaderSource);
-        GLuint fragmentShader = compileShader(GL_FRAGMENT_SHADER, fragmentShaderSource);
+        GLuint vertexShader = compileShader(GL_VERTEX_SHADER, vertexShaderSource, "builtin_vertex");
+        GLuint fragmentShader = compileShader(GL_FRAGMENT_SHADER, fragmentShaderSource, "builtin_fragment");
         shaderProgram = glCreateProgram();
         glAttachShader(shaderProgram, vertexShader);
         glAttachShader(shaderProgram, fragmentShader);
@@ -349,13 +396,16 @@ public:
         GLint success;
         glGetProgramiv(shaderProgram, GL_LINK_STATUS, &success);
         if (!success) {
-            char infoLog[512];
-            glGetProgramInfoLog(shaderProgram, 512, nullptr, infoLog);
-            std::cerr << "Shader linking error: " << infoLog << std::endl;
+            char infoLog[1024];
+            glGetProgramInfoLog(shaderProgram, 1024, nullptr, infoLog);
+            std::cerr << "ERROR::SHADER::PROGRAM::LINKING_FAILED\n";
+            std::cerr << "Built-in shader program\n";
+            std::cerr << infoLog << std::endl;
         }
 
         glDeleteShader(vertexShader);
         glDeleteShader(fragmentShader);
+        cacheUniformLocations(shaderProgram);
         projection = glm::perspective(glm::radians(60.0f), (float)width / (float)height, 0.1f, 1000.0f);
         return true;
     }
@@ -385,10 +435,11 @@ public:
         }
 
         glUseProgram(shaderProgram);
-        glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view"), 1, GL_FALSE, glm::value_ptr(view));
-        glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
-        glUniform3f(glGetUniformLocation(shaderProgram, "viewPos"), camera.position.x, camera.position.y, camera.position.z);
-        glUniform1f(glGetUniformLocation(shaderProgram, "time"), static_cast<float>(glfwGetTime()));
+        auto& uniforms = uniformCache[shaderProgram];
+        if (uniforms.view != -1) glUniformMatrix4fv(uniforms.view, 1, GL_FALSE, glm::value_ptr(view));
+        if (uniforms.projection != -1) glUniformMatrix4fv(uniforms.projection, 1, GL_FALSE, glm::value_ptr(projection));
+        if (uniforms.viewPos != -1) glUniform3f(uniforms.viewPos, camera.position.x, camera.position.y, camera.position.z);
+        if (uniforms.time != -1) glUniform1f(uniforms.time, static_cast<float>(glfwGetTime()));
     }
 
     void renderMesh(Mesh* mesh, const std::vector<Light>& lights, const Color& ambient) override {
@@ -405,29 +456,31 @@ public:
         model = glm::rotate(model, glm::radians(mesh->transform.rotation.z), glm::vec3(0, 0, 1));
         model = glm::scale(model, glm::vec3(mesh->transform.scale.x, mesh->transform.scale.y, mesh->transform.scale.z));
         glm::mat3 normalMatrix = glm::transpose(glm::inverse(glm::mat3(model)));
-        glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(model));
-        glUniformMatrix3fv(glGetUniformLocation(shaderProgram, "normalMatrix"), 1, GL_FALSE, glm::value_ptr(normalMatrix));
-        glUniform4f(glGetUniformLocation(shaderProgram, "meshColor"), mesh->color.r, mesh->color.g, mesh->color.b, mesh->color.a);
-        glUniform4f(glGetUniformLocation(shaderProgram, "ambientColor"), ambient.r, ambient.g, ambient.b, ambient.a);
+        GLuint currentProgram = shaderProgram;
+        
+        auto& uniforms = uniformCache[currentProgram];
+        if (uniforms.model != -1) glUniformMatrix4fv(uniforms.model, 1, GL_FALSE, glm::value_ptr(model));
+        if (uniforms.normalMatrix != -1) glUniformMatrix3fv(uniforms.normalMatrix, 1, GL_FALSE, glm::value_ptr(normalMatrix));
+        if (uniforms.meshColor != -1) glUniform4f(uniforms.meshColor, mesh->color.r, mesh->color.g, mesh->color.b, mesh->color.a);
+        if (uniforms.ambientColor != -1) glUniform4f(uniforms.ambientColor, ambient.r, ambient.g, ambient.b, ambient.a);
         bool hasTexture = false;
         if (buffers.textureId != 0) {
             glActiveTexture(GL_TEXTURE0);
             glBindTexture(GL_TEXTURE_2D, buffers.textureId);
-            glUniform1i(glGetUniformLocation(shaderProgram, "uTextureSampler"), 0);
+            if (uniforms.uTextureSampler != -1) glUniform1i(uniforms.uTextureSampler, 0);
             hasTexture = true;
         }
-        glUniform1i(glGetUniformLocation(shaderProgram, "uHasTexture"), hasTexture ? 1 : 0);
+        if (uniforms.uHasTexture != -1) glUniform1i(uniforms.uHasTexture, hasTexture ? 1 : 0);
         int numLights = std::min(static_cast<int>(lights.size()), 8);
-        glUniform1i(glGetUniformLocation(shaderProgram, "numLights"), numLights);
+        if (uniforms.numLights != -1) glUniform1i(uniforms.numLights, numLights);
         for (int i = 0; i < numLights; i++) {
-            std::string prefix = "lights[" + std::to_string(i) + "].";
-            glUniform1i(glGetUniformLocation(shaderProgram, (prefix + "type").c_str()), static_cast<int>(lights[i].type));
-            glUniform3f(glGetUniformLocation(shaderProgram, (prefix + "position").c_str()), lights[i].position.x, lights[i].position.y, lights[i].position.z);
-            glUniform3f(glGetUniformLocation(shaderProgram, (prefix + "direction").c_str()), lights[i].direction.x, lights[i].direction.y, lights[i].direction.z);
-            glUniform4f(glGetUniformLocation(shaderProgram, (prefix + "color").c_str()), lights[i].color.r, lights[i].color.g, lights[i].color.b, lights[i].color.a);
-            glUniform1f(glGetUniformLocation(shaderProgram, (prefix + "intensity").c_str()), lights[i].intensity);
-            glUniform1f(glGetUniformLocation(shaderProgram, (prefix + "range").c_str()), lights[i].range);
-            glUniform1f(glGetUniformLocation(shaderProgram, (prefix + "spotAngle").c_str()), lights[i].spotAngle);
+            if (uniforms.lights[i][0] != -1) glUniform1i(uniforms.lights[i][0], static_cast<int>(lights[i].type));
+            if (uniforms.lights[i][1] != -1) glUniform3f(uniforms.lights[i][1], lights[i].position.x, lights[i].position.y, lights[i].position.z);
+            if (uniforms.lights[i][2] != -1) glUniform3f(uniforms.lights[i][2], lights[i].direction.x, lights[i].direction.y, lights[i].direction.z);
+            if (uniforms.lights[i][3] != -1) glUniform4f(uniforms.lights[i][3], lights[i].color.r, lights[i].color.g, lights[i].color.b, lights[i].color.a);
+            if (uniforms.lights[i][4] != -1) glUniform1f(uniforms.lights[i][4], lights[i].intensity);
+            if (uniforms.lights[i][5] != -1) glUniform1f(uniforms.lights[i][5], lights[i].range);
+            if (uniforms.lights[i][6] != -1) glUniform1f(uniforms.lights[i][6], lights[i].spotAngle);
         }
 
         glBindVertexArray(buffers.VAO);
@@ -459,7 +512,7 @@ public:
         wireframeMode = enabled;
     }
     
-    bool loadShader(const std::string& name, const std::string& vertexPath, const std::string& fragmentPath) override {
+    bool loadShader(const std::string& name, const std::string& vertexPath, const std::string& fragmentPath, const std::string& geometryPath = "") override {
         std::ifstream vFile(vertexPath);
         std::ifstream fFile(fragmentPath);
         
@@ -478,34 +531,56 @@ public:
         vFile.close();
         fFile.close();
         
-        GLuint vertexShader = compileShader(GL_VERTEX_SHADER, vertexSource.c_str());
-        GLuint fragmentShader = compileShader(GL_FRAGMENT_SHADER, fragmentSource.c_str());
+        GLuint vertexShader = compileShader(GL_VERTEX_SHADER, vertexSource.c_str(), vertexPath.c_str());
+        GLuint fragmentShader = compileShader(GL_FRAGMENT_SHADER, fragmentSource.c_str(), fragmentPath.c_str());
+        GLuint geometryShader = 0;
+        
+        if (!geometryPath.empty()) {
+            std::ifstream gFile(geometryPath);
+            if (gFile.is_open()) {
+                std::stringstream gStream;
+                gStream << gFile.rdbuf();
+                std::string geometrySource = gStream.str();
+                gFile.close();
+                geometryShader = compileShader(GL_GEOMETRY_SHADER, geometrySource.c_str(), geometryPath.c_str());
+            }
+        }
         
         if (!vertexShader || !fragmentShader) {
             if (vertexShader) glDeleteShader(vertexShader);
             if (fragmentShader) glDeleteShader(fragmentShader);
+            if (geometryShader) glDeleteShader(geometryShader);
             return false;
         }
         
         GLuint program = glCreateProgram();
         glAttachShader(program, vertexShader);
         glAttachShader(program, fragmentShader);
+        if (geometryShader) glAttachShader(program, geometryShader);
         glLinkProgram(program);
         
         GLint success;
         glGetProgramiv(program, GL_LINK_STATUS, &success);
         if (!success) {
-            char infoLog[512];
-            glGetProgramInfoLog(program, 512, nullptr, infoLog);
-            std::cerr << "Shader linking error: " << infoLog << std::endl;
+            char infoLog[1024];
+            glGetProgramInfoLog(program, 1024, nullptr, infoLog);
+            std::cerr << "ERROR::SHADER::PROGRAM::LINKING_FAILED\n";
+            std::cerr << "Vertex: " << vertexPath << "\n";
+            std::cerr << "Fragment: " << fragmentPath << "\n";
+            if (!geometryPath.empty()) {
+                std::cerr << "Geometry: " << geometryPath << "\n";
+            }
+            std::cerr << infoLog << std::endl;
             glDeleteProgram(program);
             return false;
         }
         
         glDeleteShader(vertexShader);
         glDeleteShader(fragmentShader);
+        if (geometryShader) glDeleteShader(geometryShader);
         
         shaderPrograms[name] = program;
+        cacheUniformLocations(program);
         return true;
     }
     
@@ -513,10 +588,12 @@ public:
         auto it = shaderPrograms.find(name);
         if (it != shaderPrograms.end()) {
             glUseProgram(it->second);
-            glUniform1f(glGetUniformLocation(it->second, "time"), static_cast<float>(glfwGetTime()));
+            auto& uniforms = uniformCache[it->second];
+            if (uniforms.time != -1) glUniform1f(uniforms.time, static_cast<float>(glfwGetTime()));
         } else {
             glUseProgram(shaderProgram);
-            glUniform1f(glGetUniformLocation(shaderProgram, "time"), static_cast<float>(glfwGetTime()));
+            auto& uniforms = uniformCache[shaderProgram];
+            if (uniforms.time != -1) glUniform1f(uniforms.time, static_cast<float>(glfwGetTime()));
         }
     }
 
