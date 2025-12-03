@@ -1,0 +1,71 @@
+/*
+   Copyright 2025 NEOAPPS
+
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+*/
+print("Combine .comap Test");
+if (loadMap("test.comap")) {} else {
+    error("Failed to load map!");
+}
+
+global scene = getScene();
+global cam = getCamera();
+global moveSpeed = 5.0;
+global targetCamX = 0.0;
+global targetCamY = 0.0;
+onUpdate(fun(deltaTime) {
+    var forward = cam.forward();
+    var right = cam.right();
+    if (isKeyDown(KEY_W)) {
+        cam.position.x = cam.position.x + forward.x * moveSpeed * deltaTime;
+        cam.position.y = cam.position.y + forward.y * moveSpeed * deltaTime;
+        cam.position.z = cam.position.z + forward.z * moveSpeed * deltaTime;
+    }
+    if (isKeyDown(KEY_S)) {
+        cam.position.x = cam.position.x - forward.x * moveSpeed * deltaTime;
+        cam.position.y = cam.position.y - forward.y * moveSpeed * deltaTime;
+        cam.position.z = cam.position.z - forward.z * moveSpeed * deltaTime;
+    }
+    if (isKeyDown(KEY_A)) {
+        cam.position.x = cam.position.x - right.x * moveSpeed * deltaTime;
+        cam.position.z = cam.position.z - right.z * moveSpeed * deltaTime;
+    }
+    if (isKeyDown(KEY_D)) {
+        cam.position.x = cam.position.x + right.x * moveSpeed * deltaTime;
+        cam.position.z = cam.position.z + right.z * moveSpeed * deltaTime;
+    }
+    if (isKeyDown(KEY_SPACE)) {
+        cam.position.y = cam.position.y + moveSpeed * deltaTime;
+    }
+    if (isKeyDown(KEY_LSHIFT)) {
+        cam.position.y = cam.position.y - moveSpeed * deltaTime;
+    }
+
+    if (isKeyDown(KEY_LEFT)) {
+        targetCamY = targetCamY - 90.0 * deltaTime;
+    }
+    if (isKeyDown(KEY_RIGHT)) {
+        targetCamY = targetCamY + 90.0 * deltaTime;
+    }
+    if (isKeyDown(KEY_UP)) {
+        targetCamX = targetCamX - 60.0 * deltaTime;
+    }
+    if (isKeyDown(KEY_DOWN)) {
+        targetCamX = targetCamX + 60.0 * deltaTime;
+    }
+
+    cam.rotation.x = targetCamX;
+    cam.rotation.y = targetCamY;
+});
+
+print("Script initialized!");

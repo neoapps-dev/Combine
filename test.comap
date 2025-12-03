@@ -1,0 +1,54 @@
+# Combine Map File
+version: 1.0
+name: Test Scene
+ambientColor: 0.2,0.2,0.2,1.0
+cameraPosition: 0,2,5
+cameraRotation: -15,0,0
+cameraFov: 60.0
+light: directional
+  position: 50,50,50
+  direction: 0.3,0.6,0.7
+  color: 1,0.95,0.8,1
+  intensity: 3.0
+  range: 1000.0
+  spotAngle: 45.0
+
+light: point
+  position: 2,1,2
+  direction: 0,-1,0
+  color: 1,0.8,0.6,1
+  intensity: 2.0
+  range: 5.0
+  spotAngle: 45.0
+
+object: cube
+  name: Ground
+  tag: floor
+  position: 0,-0.5,0
+  rotation: 0,0,0
+  scale: 10,1,10
+  color: 0.3,0.6,0.3,1.0
+
+object: cube
+  name: Player
+  tag: player
+  position: 0,0.5,0
+  rotation: 0,0,0
+  scale: 1,1,1
+  color: 0.2,0.4,0.8,1.0
+
+object: sphere
+  name: Orb
+  tag: collectible
+  position: 2,1,2
+  rotation: 0,0,0
+  scale: 0.5,0.5,0.5
+  color: 1,1,0,1.0
+
+object: plane
+  name: Wall
+  tag: wall
+  position: -3,1,0
+  rotation: 0,90,0
+  scale: 1,2,1
+  color: 0.6,0.3,0.3,1.0

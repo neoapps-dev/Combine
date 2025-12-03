@@ -18,6 +18,7 @@
 #define CHAISCRIPT_ENGINE_H
 
 #include "../CombineEngine.h"
+#include "../MapLoader.h"
 #include <chaiscript/chaiscript.hpp>
 #include <iostream>
 #include <functional>
@@ -38,6 +39,7 @@ public:
     }
 
     void registerAPI() override {
+        chai->add(chaiscript::const_var(chaiscript::Boxed_Value()), "null");
         chai->add(chaiscript::fun([this](const std::string& msg) {
             std::cout << "[" << currentFile << "] " << msg << std::endl;
         }), "print");
@@ -103,6 +105,10 @@ public:
         chai->add(chaiscript::fun(&Entity::name), "name");
         chai->add(chaiscript::fun(&Entity::tag), "tag");
         chai->add(chaiscript::fun(&Entity::active), "active");
+        chai->add(chaiscript::fun([](const std::shared_ptr<Entity>& a, const std::shared_ptr<Entity>& b) { return a == b; }), "==");
+        chai->add(chaiscript::fun([](const std::shared_ptr<Entity>& a, const std::shared_ptr<Entity>& b) { return a != b; }), "!=");
+        chai->add(chaiscript::fun([](const std::shared_ptr<Entity>& a) { return a == nullptr; }), "==");
+        chai->add(chaiscript::fun([](const std::shared_ptr<Entity>& a) { return a != nullptr; }), "!=");
         chai->add(chaiscript::user_type<Vertex>(), "Vertex");
         chai->add(chaiscript::constructor<Vertex()>(), "Vertex");
         chai->add(chaiscript::constructor<Vertex(const Vector3&)>(), "Vertex");
@@ -456,6 +462,18 @@ public:
         chai->add(chaiscript::fun([](float value) -> float {
             return std::round(value);
         }), "round");
+        chai->add(chaiscript::fun([](const std::string& filename) -> bool {
+            auto mapData = MapLoader::loadMap(filename);
+            if (mapData) {
+                MapLoader::loadMapIntoScene(mapData, g_engine->getScene());
+                return true;
+            }
+            return false;
+        }), "loadMap");
+
+        chai->add(chaiscript::fun([]() {
+            MapLoader::clearScene(g_engine->getScene());
+        }), "clearScene");
     }
 
     bool executeFile(const std::string& filename) override {

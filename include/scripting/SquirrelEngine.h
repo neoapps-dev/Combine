@@ -17,6 +17,7 @@
 #ifndef SQUIRREL_ENGINE_H
 #define SQUIRREL_ENGINE_H
 #include "../CombineEngine.h"
+#include "../MapLoader.h"
 #include <squirrel.h>
 #include <sqstdio.h>
 #include <sqstdaux.h>
@@ -357,6 +358,25 @@ private:
         sq_getstring(v, 2, &filename);
         sq_pushbool(v, g_engine->executeScript(filename));
         return 1;
+    }
+
+    static SQInteger sq_loadMap(HSQUIRRELVM v) {
+        const SQChar* filename;
+        sq_getstring(v, 2, &filename);
+        auto mapData = MapLoader::loadMap(filename);
+        if (mapData) {
+            MapLoader::loadMapIntoScene(mapData, g_engine->getScene());
+            sq_pushbool(v, SQTrue);
+        } else {
+            sq_pushbool(v, SQFalse);
+        }
+        return 1;
+    }
+
+    static SQInteger sq_clearScene(HSQUIRRELVM v) {
+        (void)v;
+        MapLoader::clearScene(g_engine->getScene());
+        return 0;
     }
 
     static SQInteger sq_mesh_get(HSQUIRRELVM v) {
@@ -823,6 +843,8 @@ public:
         registerFunction("radians", sq_radians);
         registerFunction("degrees", sq_degrees);
         registerFunction("require", sq_require);
+        registerFunction("loadMap", sq_loadMap);
+        registerFunction("clearScene", sq_clearScene);
 
         registerConstant("KEY_SPACE", static_cast<SQInteger>(KeyCode::Space));
         registerConstant("KEY_ESCAPE", static_cast<SQInteger>(KeyCode::Escape));

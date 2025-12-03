@@ -16,7 +16,7 @@
 
 #ifndef OPENGL_RENDERER_H
 #define OPENGL_RENDERER_H
-#include "../CombineEngine.h"
+#include "CombineEngine.h"
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
 #include <glm/glm.hpp>
@@ -24,11 +24,26 @@
 #include <glm/gtc/type_ptr.hpp>
 #include <unordered_map>
 #include <iostream>
+#include <vector>
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
 namespace Combine {
+struct Texture {
+    GLuint id = 0;
+    int width = 0;
+    int height = 0;
+    int channels = 0;
+    std::string path;
+
+    Texture() = default;
+    Texture(const std::string& filepath) : path(filepath) {}
+};
+
 struct MeshBuffers {
     GLuint VAO = 0;
     GLuint VBO = 0;
     GLuint EBO = 0;
+    GLuint textureId = 0;
     size_t vertexCount = 0;
     size_t indexCount = 0;
 };
@@ -43,27 +58,25 @@ private:
     glm::mat4 view;
     bool wireframeMode = false;
     bool vsyncEnabled = true;
-
     std::unordered_map<unsigned int, MeshBuffers> meshBufferCache;
+    std::unordered_map<std::string, Texture> textureCache;
     unsigned int nextMeshId = 1;
-
     const char* vertexShaderSource = R"(
         #version 330 core
         layout (location = 0) in vec3 aPos;
         layout (location = 1) in vec3 aNormal;
         layout (location = 2) in vec2 aTexCoord;
         layout (location = 3) in vec4 aColor;
-
         uniform mat4 model;
         uniform mat4 view;
         uniform mat4 projection;
         uniform mat3 normalMatrix;
-
+        uniform bool uHasTexture;
+        uniform sampler2D uTextureSampler;
         out vec3 FragPos;
         out vec3 Normal;
         out vec2 TexCoord;
         out vec4 VertexColor;
-
         void main() {
             FragPos = vec3(model * vec4(aPos, 1.0));
             Normal = normalMatrix * aNormal;
@@ -79,13 +92,12 @@ private:
         in vec3 Normal;
         in vec2 TexCoord;
         in vec4 VertexColor;
-
         out vec4 FragColor;
-
         uniform vec4 meshColor;
         uniform vec3 viewPos;
         uniform vec4 ambientColor;
-
+        uniform bool uHasTexture;
+        uniform sampler2D uTextureSampler;
         struct Light {
             int type;
             vec3 position;
@@ -99,18 +111,14 @@ private:
         #define MAX_LIGHTS 8
         uniform Light lights[MAX_LIGHTS];
         uniform int numLights;
-
         void main() {
             vec3 norm = normalize(Normal);
             vec3 viewDir = normalize(viewPos - FragPos);
-
             vec3 ambient = ambientColor.rgb * ambientColor.a;
             vec3 result = ambient;
-
             for (int i = 0; i < numLights && i < MAX_LIGHTS; i++) {
                 vec3 lightDir;
                 float attenuation = 1.0;
-
                 if (lights[i].type == 0) {
                     lightDir = normalize(-lights[i].direction);
                 } else if (lights[i].type == 1) {
@@ -123,10 +131,8 @@ private:
                     vec3 toLight = lights[i].position - FragPos;
                     float dist = length(toLight);
                     lightDir = normalize(toLight);
-
                     float theta = dot(lightDir, normalize(-lights[i].direction));
                     float cutoff = cos(radians(lights[i].spotAngle));
-
                     if (theta > cutoff) {
                         attenuation = clamp(1.0 - dist / lights[i].range, 0.0, 1.0);
                         attenuation *= attenuation;
@@ -138,12 +144,12 @@ private:
 
                 float diff = max(dot(norm, lightDir), 0.0);
                 vec3 diffuse = diff * lights[i].color.rgb * lights[i].intensity;
-
                 vec3 halfwayDir = normalize(lightDir + viewDir);
-                float spec = pow(max(dot(norm, halfwayDir), 0.0), 32.0);
-                vec3 specular = spec * lights[i].color.rgb * lights[i].intensity * 0.5;
+                float spec = pow(max(dot(norm, halfwayDir), 0.0), 64.0);
+                vec3 specular = spec * lights[i].color.rgb * lights[i].intensity * 0.8;
+                vec3 ambient = lights[i].color.rgb * 0.05;
 
-                result += (diffuse + specular) * attenuation;
+                result += (ambient + diffuse + specular) * attenuation;
             }
 
             if (numLights == 0) {
@@ -151,6 +157,11 @@ private:
             }
 
             vec4 baseColor = meshColor * VertexColor;
+            if (uHasTexture) {
+                vec4 texColor = texture(uTextureSampler, TexCoord);
+                baseColor = baseColor * texColor;
+            }
+
             FragColor = vec4(result * baseColor.rgb, baseColor.a);
         }
     )";
@@ -179,7 +190,6 @@ private:
         GLuint shader = glCreateShader(type);
         glShaderSource(shader, 1, &source, nullptr);
         glCompileShader(shader);
-
         GLint success;
         glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
         if (!success) {
@@ -204,16 +214,12 @@ private:
         }
 
         MeshBuffers buffers;
-
         glGenVertexArrays(1, &buffers.VAO);
         glGenBuffers(1, &buffers.VBO);
         glGenBuffers(1, &buffers.EBO);
-
         glBindVertexArray(buffers.VAO);
-
         std::vector<float> vertexData;
         vertexData.reserve(mesh->vertices.size() * 12);
-
         for (const auto& v : mesh->vertices) {
             vertexData.push_back(v.position.x);
             vertexData.push_back(v.position.y);
@@ -231,40 +237,74 @@ private:
 
         glBindBuffer(GL_ARRAY_BUFFER, buffers.VBO);
         glBufferData(GL_ARRAY_BUFFER, vertexData.size() * sizeof(float), vertexData.data(), GL_STATIC_DRAW);
-
         if (!mesh->indices.empty()) {
             glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, buffers.EBO);
             glBufferData(GL_ELEMENT_ARRAY_BUFFER, mesh->indices.size() * sizeof(unsigned int), mesh->indices.data(), GL_STATIC_DRAW);
         }
 
         size_t stride = 12 * sizeof(float);
-
         glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, stride, (void*)0);
         glEnableVertexAttribArray(0);
-
         glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, stride, (void*)(3 * sizeof(float)));
         glEnableVertexAttribArray(1);
-
         glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, stride, (void*)(6 * sizeof(float)));
         glEnableVertexAttribArray(2);
-
         glVertexAttribPointer(3, 4, GL_FLOAT, GL_FALSE, stride, (void*)(8 * sizeof(float)));
         glEnableVertexAttribArray(3);
-
         glBindVertexArray(0);
-
         buffers.vertexCount = mesh->vertices.size();
         buffers.indexCount = mesh->indices.size();
+        if (!mesh->texturePath.empty()) {
+            buffers.textureId = loadTexture(mesh->texturePath);
+        }
 
         meshBufferCache[mesh->renderId] = buffers;
         mesh->dirty = false;
+    }
+
+    GLuint loadTexture(const std::string& filepath) {
+        auto it = textureCache.find(filepath);
+        if (it != textureCache.end()) {
+            return it->second.id;
+        }
+
+        Texture texture(filepath);
+        int width, height, channels;
+        unsigned char* data = stbi_load(filepath.c_str(), &width, &height, &channels, 4);
+        if (!data) {
+            std::cerr << "Failed to load texture: " << filepath << std::endl;
+            unsigned char whitePixel[] = {255, 255, 255, 255};
+            glGenTextures(1, &texture.id);
+            glBindTexture(GL_TEXTURE_2D, texture.id);
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, whitePixel);
+        } else {
+            texture.width = width;
+            texture.height = height;
+            texture.channels = 4;
+            glGenTextures(1, &texture.id);
+            glBindTexture(GL_TEXTURE_2D, texture.id);
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+            stbi_image_free(data);
+        }
+
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+        if (data) {
+            glGenerateMipmap(GL_TEXTURE_2D);
+        }
+
+        glBindTexture(GL_TEXTURE_2D, 0);
+
+        textureCache[filepath] = texture;
+        return texture.id;
     }
 
 public:
     bool initialize(int width, int height, const std::string& title) override {
         windowWidth = width;
         windowHeight = height;
-
         if (!glfwInit()) {
             std::cerr << "Failed to initialize GLFW" << std::endl;
             return false;
@@ -274,7 +314,6 @@ public:
         glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
         glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
         glfwWindowHint(GLFW_SAMPLES, 4);
-
         window = glfwCreateWindow(width, height, title.c_str(), nullptr, nullptr);
         if (!window) {
             std::cerr << "Failed to create GLFW window" << std::endl;
@@ -284,12 +323,10 @@ public:
 
         glfwMakeContextCurrent(window);
         glfwSwapInterval(vsyncEnabled ? 1 : 0);
-
         glfwSetKeyCallback(window, keyCallback);
         glfwSetMouseButtonCallback(window, mouseButtonCallback);
         glfwSetCursorPosCallback(window, cursorPosCallback);
         glfwSetScrollCallback(window, scrollCallback);
-
         if (glewInit() != GLEW_OK) {
             std::cerr << "Failed to initialize GLEW" << std::endl;
             return false;
@@ -300,15 +337,12 @@ public:
         glEnable(GL_CULL_FACE);
         glCullFace(GL_BACK);
         glFrontFace(GL_CCW);
-
         GLuint vertexShader = compileShader(GL_VERTEX_SHADER, vertexShaderSource);
         GLuint fragmentShader = compileShader(GL_FRAGMENT_SHADER, fragmentShaderSource);
-
         shaderProgram = glCreateProgram();
         glAttachShader(shaderProgram, vertexShader);
         glAttachShader(shaderProgram, fragmentShader);
         glLinkProgram(shaderProgram);
-
         GLint success;
         glGetProgramiv(shaderProgram, GL_LINK_STATUS, &success);
         if (!success) {
@@ -319,15 +353,12 @@ public:
 
         glDeleteShader(vertexShader);
         glDeleteShader(fragmentShader);
-
         projection = glm::perspective(glm::radians(60.0f), (float)width / (float)height, 0.1f, 1000.0f);
-
         return true;
     }
 
     void beginFrame(const Camera& camera) override {
         glfwPollEvents();
-
         int w, h;
         glfwGetFramebufferSize(window, &w, &h);
         if (w != windowWidth || h != windowHeight) {
@@ -337,16 +368,13 @@ public:
         }
 
         projection = glm::perspective(glm::radians(camera.fov), (float)windowWidth / (float)windowHeight, camera.nearPlane, camera.farPlane);
-
         view = glm::mat4(1.0f);
         view = glm::rotate(view, glm::radians(camera.rotation.x), glm::vec3(1, 0, 0));
         view = glm::rotate(view, glm::radians(camera.rotation.y), glm::vec3(0, 1, 0));
         view = glm::rotate(view, glm::radians(camera.rotation.z), glm::vec3(0, 0, 1));
         view = glm::translate(view, glm::vec3(-camera.position.x, -camera.position.y, -camera.position.z));
-
         glClearColor(camera.clearColor.r, camera.clearColor.g, camera.clearColor.b, camera.clearColor.a);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
         if (wireframeMode) {
             glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
         } else {
@@ -354,7 +382,6 @@ public:
         }
 
         glUseProgram(shaderProgram);
-
         glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view"), 1, GL_FALSE, glm::value_ptr(view));
         glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
         glUniform3f(glGetUniformLocation(shaderProgram, "viewPos"), camera.position.x, camera.position.y, camera.position.z);
@@ -362,30 +389,32 @@ public:
 
     void renderMesh(Mesh* mesh, const std::vector<Light>& lights, const Color& ambient) override {
         if (mesh->vertices.empty()) return;
-
         if (mesh->dirty || meshBufferCache.find(mesh->renderId) == meshBufferCache.end()) {
             createMeshBuffers(mesh);
         }
 
         auto& buffers = meshBufferCache[mesh->renderId];
-
         glm::mat4 model = glm::mat4(1.0f);
         model = glm::translate(model, glm::vec3(mesh->transform.position.x, mesh->transform.position.y, mesh->transform.position.z));
         model = glm::rotate(model, glm::radians(mesh->transform.rotation.x), glm::vec3(1, 0, 0));
         model = glm::rotate(model, glm::radians(mesh->transform.rotation.y), glm::vec3(0, 1, 0));
         model = glm::rotate(model, glm::radians(mesh->transform.rotation.z), glm::vec3(0, 0, 1));
         model = glm::scale(model, glm::vec3(mesh->transform.scale.x, mesh->transform.scale.y, mesh->transform.scale.z));
-
         glm::mat3 normalMatrix = glm::transpose(glm::inverse(glm::mat3(model)));
-
         glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(model));
         glUniformMatrix3fv(glGetUniformLocation(shaderProgram, "normalMatrix"), 1, GL_FALSE, glm::value_ptr(normalMatrix));
         glUniform4f(glGetUniformLocation(shaderProgram, "meshColor"), mesh->color.r, mesh->color.g, mesh->color.b, mesh->color.a);
         glUniform4f(glGetUniformLocation(shaderProgram, "ambientColor"), ambient.r, ambient.g, ambient.b, ambient.a);
-
+        bool hasTexture = false;
+        if (buffers.textureId != 0) {
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, buffers.textureId);
+            glUniform1i(glGetUniformLocation(shaderProgram, "uTextureSampler"), 0);
+            hasTexture = true;
+        }
+        glUniform1i(glGetUniformLocation(shaderProgram, "uHasTexture"), hasTexture ? 1 : 0);
         int numLights = std::min(static_cast<int>(lights.size()), 8);
         glUniform1i(glGetUniformLocation(shaderProgram, "numLights"), numLights);
-
         for (int i = 0; i < numLights; i++) {
             std::string prefix = "lights[" + std::to_string(i) + "].";
             glUniform1i(glGetUniformLocation(shaderProgram, (prefix + "type").c_str()), static_cast<int>(lights[i].type));
@@ -398,7 +427,6 @@ public:
         }
 
         glBindVertexArray(buffers.VAO);
-
         if (buffers.indexCount > 0) {
             glDrawElements(GL_TRIANGLES, buffers.indexCount, GL_UNSIGNED_INT, 0);
         } else {
@@ -418,7 +446,6 @@ public:
 
     int getWidth() const override { return windowWidth; }
     int getHeight() const override { return windowHeight; }
-
     void setVSync(bool enabled) override {
         vsyncEnabled = enabled;
         glfwSwapInterval(enabled ? 1 : 0);
@@ -435,7 +462,10 @@ public:
             glDeleteBuffers(1, &buffers.EBO);
         }
         meshBufferCache.clear();
-
+        for (auto& [path, texture] : textureCache) {
+            glDeleteTextures(1, &texture.id);
+        }
+        textureCache.clear();
         glDeleteProgram(shaderProgram);
         glfwDestroyWindow(window);
         glfwTerminate();

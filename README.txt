@@ -28,3 +28,4 @@ License:
 The Combine Engine itself is licensed under the Apache 2.0 License.
 Except for ChaiScript which is licensed under the BSD-3-Clause License.
 Lua and Squirrel are licensed under the MIT license.
+stb_image under the public domain.

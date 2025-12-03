@@ -51,6 +51,7 @@ load_config() {
     DEBUG="yes"
     OPTIMIZATIONS="yes"
     STATIC="no"
+    WINDOW_TITLE="Combine Engine"
   fi
 }
 
@@ -62,6 +63,7 @@ INIT_SCRIPT=$INIT_SCRIPT
 DEBUG=$DEBUG
 OPTIMIZATIONS=$OPTIMIZATIONS
 STATIC=$STATIC
+WINDOW_TITLE=$WINDOW_TITLE
 EOF
   echo "-> $CONFIG_FILE"
 }
@@ -124,6 +126,16 @@ set_init_script() {
   fi
 }
 
+set_window_title() {
+  result=$(dialog --title "Window Title" \
+    --inputbox "Enter window title:" 8 60 "$WINDOW_TITLE" \
+    2>&1 >/dev/tty)
+
+  if [ $? -eq 0 ] && [ -n "$result" ]; then
+    WINDOW_TITLE="$result"
+  fi
+}
+
 toggle_debug() {
   if [ "$DEBUG" = "yes" ]; then
     DEBUG="no"
@@ -149,6 +161,7 @@ toggle_static() {
 }
 
 main_menu() {
+  load_config
   while true; do
     local debug_label="[ ]"
     local opt_label="[ ]"
@@ -157,13 +170,14 @@ main_menu() {
     [ "$OPTIMIZATIONS" = "yes" ] && opt_label="[*]"
     [ "$STATIC" = "yes" ] && static_label="[*]"
     choice=$(dialog --title "Combine Engine Configuration" \
-      --menu "Use arrow keys to navigate, Enter to select:" 20 60 9 \
+      --menu "Use arrow keys to navigate, Enter to select:" 22 60 10 \
       "1" "Renderer:          $RENDERER" \
       "2" "Script Engines:    $SUPPORTED_SCRIPTS" \
       "3" "Init Script:       $INIT_SCRIPT" \
-      "4" "$debug_label Debug Mode" \
-      "5" "$opt_label Optimizations" \
-      "6" "$static_label Static Linking" \
+      "4" "Window Title:      $WINDOW_TITLE" \
+      "5" "$debug_label Debug Mode" \
+      "6" "$opt_label Optimizations" \
+      "7" "$static_label Static Linking" \
       "" "" \
       "S" "Save and Exit" \
       "Q" "Quit without Saving" \
@@ -175,9 +189,10 @@ main_menu() {
     1) select_renderer ;;
     2) select_scripts ;;
     3) set_init_script ;;
-    4) toggle_debug ;;
-    5) toggle_optimizations ;;
-    6) toggle_static ;;
+    4) set_window_title ;;
+    5) toggle_debug ;;
+    6) toggle_optimizations ;;
+    7) toggle_static ;;
     S)
       save_config
       break

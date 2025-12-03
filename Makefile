@@ -13,7 +13,7 @@
 #   limitations under the License.
 #
 CXX = g++
-CXXFLAGS_BASE = -std=c++17 -Iinclude -Wall -Wextra
+CXXFLAGS_BASE = -std=c++17 -Iinclude -Iexternal -Wall -Wextra
 comma := ,
 LDFLAGS_BASE = -ldl -lpthread
 SRCDIR = src

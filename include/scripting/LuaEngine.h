@@ -18,11 +18,13 @@
 #define LUA_ENGINE_H
 
 #include "../CombineEngine.h"
+#include "../MapLoader.h"
 #include <lua.hpp>
 #include <iostream>
 #include <functional>
 #include <vector>
 #include <map>
+#include <cstring>
 
 namespace Combine {
 
@@ -290,6 +292,24 @@ private:
         const char* filename = luaL_checkstring(L, 1);
         lua_pushboolean(L, g_engine->executeScript(filename));
         return 1;
+    }
+
+    static int l_loadMap(lua_State* L) {
+        const char* filename = luaL_checkstring(L, 1);
+        auto mapData = MapLoader::loadMap(filename);
+        if (mapData) {
+            MapLoader::loadMapIntoScene(mapData, g_engine->getScene());
+            lua_pushboolean(L, 1);
+        } else {
+            lua_pushboolean(L, 0);
+        }
+        return 1;
+    }
+
+    static int l_clearScene(lua_State* L) {
+        (void)L;
+        MapLoader::clearScene(g_engine->getScene());
+        return 0;
     }
 
     static int l_mesh_gc(lua_State* L) {
@@ -796,6 +816,8 @@ public:
         lua_register(L, "radians", l_radians);
         lua_register(L, "degrees", l_degrees);
         lua_register(L, "require", l_require);
+        lua_register(L, "loadMap", l_loadMap);
+        lua_register(L, "clearScene", l_clearScene);
 
         registerKeyConstants();
     }

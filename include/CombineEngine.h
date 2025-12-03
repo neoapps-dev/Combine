@@ -338,6 +338,7 @@ public:
     Color color;
     bool dirty = true;
     unsigned int renderId = 0;
+    std::string texturePath;
     
     Mesh(const std::string& name = "Mesh") : Entity(name), color(Color::white()) {}
     
@@ -417,7 +418,7 @@ public:
         };
         
         int faceIndices[][4] = {
-            {0, 1, 2, 3}, {5, 4, 7, 6}, {4, 0, 3, 7}, {1, 5, 6, 2}, {4, 5, 1, 0}, {3, 2, 6, 7}
+            {0, 3, 2, 1}, {4, 5, 6, 7}, {0, 4, 7, 3}, {1, 2, 6, 5}, {0, 1, 5, 4}, {3, 7, 6, 2}
         };
         
         for (int face = 0; face < 6; face++) {
