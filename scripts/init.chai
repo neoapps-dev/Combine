@@ -1,0 +1,136 @@
+print("Combine Engine - ChaiScript Initialized!")
+
+print("Loading Lua helper...")
+require("scripts/helper.lua")
+print("Lua helper loaded from ChaiScript!")
+global scene = getScene()
+global cam = getCamera()
+cam.position.x = 0.0
+cam.position.y = 3.0
+cam.position.z = 8.0
+cam.rotation.x = 20.0
+cam.rotation.y = 0.0
+cam.fov = 60.0
+global scriptedCube = createCube("ScriptedCube")
+scriptedCube.transform.position.x = 0.0
+scriptedCube.transform.position.y = 2.5
+scriptedCube.transform.position.z = 0.0
+scriptedCube.transform.scale.x = 0.5
+scriptedCube.transform.scale.y = 0.5
+scriptedCube.transform.scale.z = 0.5
+scriptedCube.color.r = 1.0
+scriptedCube.color.g = 0.5
+scriptedCube.color.b = 0.0
+addEntity(scriptedCube)
+global orbitSphere = createSphere("OrbitSphere", 16, 16)
+orbitSphere.transform.scale.x = 0.3
+orbitSphere.transform.scale.y = 0.3
+orbitSphere.transform.scale.z = 0.3
+orbitSphere.color.r = 0.0
+orbitSphere.color.g = 1.0
+orbitSphere.color.b = 0.5
+addEntity(orbitSphere)
+global secondOrbit = createCube("OrbitCube")
+secondOrbit.transform.scale.x = 0.25
+secondOrbit.transform.scale.y = 0.25
+secondOrbit.transform.scale.z = 0.25
+secondOrbit.color.r = 1.0
+secondOrbit.color.g = 0.2
+secondOrbit.color.b = 0.8
+addEntity(secondOrbit)
+global angle = 0.0
+global orbitRadius = 2.0
+global orbitSpeed = 2.0
+global secondAngle = 0.0
+global moveSpeed = 5.0
+global targetCamY = 0.0
+global targetCamX = 20.0
+onUpdate(fun(dt) {
+    angle = angle + orbitSpeed * dt
+    secondAngle = secondAngle + orbitSpeed * 1.5 * dt
+    orbitSphere.transform.position.x = cos(angle) * orbitRadius
+    orbitSphere.transform.position.y = 2.0
+    orbitSphere.transform.position.z = sin(angle) * orbitRadius
+    secondOrbit.transform.position.x = cos(secondAngle) * (orbitRadius * 0.6)
+    secondOrbit.transform.position.y = sin(secondAngle * 2.0) * 0.5 + 2.0
+    secondOrbit.transform.position.z = sin(secondAngle) * (orbitRadius * 0.6)
+    secondOrbit.transform.rotation.x = secondAngle * 100.0
+    secondOrbit.transform.rotation.y = secondAngle * 150.0
+    scriptedCube.transform.rotation.y = scriptedCube.transform.rotation.y + 60.0 * dt
+    scriptedCube.transform.rotation.x = sin(totalTime() * 2.0) * 15.0
+    var pulse = (sin(totalTime() * 3.0) + 1.0) * 0.5
+    scriptedCube.color.r = 1.0
+    scriptedCube.color.g = 0.3 + pulse * 0.4
+    scriptedCube.color.b = pulse * 0.3
+    var forward = cam.forward()
+    var right = cam.right()
+    if (isKeyDown(KEY_W)) {
+        cam.position.x = cam.position.x + forward.x * moveSpeed * dt
+        cam.position.y = cam.position.y + forward.y * moveSpeed * dt
+        cam.position.z = cam.position.z + forward.z * moveSpeed * dt
+    }
+    if (isKeyDown(KEY_S)) {
+        cam.position.x = cam.position.x - forward.x * moveSpeed * dt
+        cam.position.y = cam.position.y - forward.y * moveSpeed * dt
+        cam.position.z = cam.position.z - forward.z * moveSpeed * dt
+    }
+    if (isKeyDown(KEY_A)) {
+        cam.position.x = cam.position.x - right.x * moveSpeed * dt
+        cam.position.z = cam.position.z - right.z * moveSpeed * dt
+    }
+    if (isKeyDown(KEY_D)) {
+        cam.position.x = cam.position.x + right.x * moveSpeed * dt
+        cam.position.z = cam.position.z + right.z * moveSpeed * dt
+    }
+    if (isKeyDown(KEY_SPACE)) {
+        cam.position.y = cam.position.y + moveSpeed * dt
+    }
+    if (isKeyDown(KEY_LSHIFT)) {
+        cam.position.y = cam.position.y - moveSpeed * dt
+    }
+
+    if (isKeyDown(KEY_LEFT)) {
+        targetCamY = targetCamY - 90.0 * dt
+    }
+    if (isKeyDown(KEY_RIGHT)) {
+        targetCamY = targetCamY + 90.0 * dt
+    }
+    if (isKeyDown(KEY_UP)) {
+        targetCamX = targetCamX - 60.0 * dt
+    }
+    if (isKeyDown(KEY_DOWN)) {
+        targetCamX = targetCamX + 60.0 * dt
+    }
+
+    if (targetCamX < -89.0) { targetCamX = -89.0 }
+    if (targetCamX > 89.0) { targetCamX = 89.0 }
+    cam.rotation.y = cam.rotation.y + (targetCamY - cam.rotation.y) * 10.0 * dt
+    cam.rotation.x = cam.rotation.x + (targetCamX - cam.rotation.x) * 10.0 * dt
+    if (isKeyPressed(KEY_F)) {
+        setWireframe(true)
+        print("Wireframe ON")
+    }
+    if (isKeyPressed(KEY_G)) {
+        setWireframe(false)
+        print("Wireframe OFF")
+    }
+
+    if (isKeyPressed(KEY_ESCAPE)) {
+        print("Exiting...")
+        quit()
+    }
+
+    if (isKeyPressed(KEY_R)) {
+        cam.position.x = 0.0
+        cam.position.y = 3.0
+        cam.position.z = 8.0
+        cam.rotation.x = 20.0
+        cam.rotation.y = 0.0
+        targetCamY = 0.0
+        targetCamX = 20.0
+        print("Camera reset")
+    }
+})
+
+print("Scene setup complete!")
+print("Controls: WASD move, Arrows look, Space/Shift up/down, F/G wireframe, R reset, ESC quit")
