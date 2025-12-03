@@ -25,4 +25,6 @@ For detailed information, refer to the source code. because I'm too lazy to make
 
 License:
 --------
-The Combine Engine is licensed under the Apache 2.0 License.
+The Combine Engine itself is licensed under the Apache 2.0 License.
+Except for ChaiScript which is licensed under the BSD-3-Clause License.
+Lua and Squirrel are licensed under the MIT license.
