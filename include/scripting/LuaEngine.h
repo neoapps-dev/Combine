@@ -312,6 +312,27 @@ private:
         return 0;
     }
 
+    static int l_loadRendererShader(lua_State* L) {
+        const char* name = luaL_checkstring(L, 1);
+        const char* vertexPath = luaL_checkstring(L, 2);
+        const char* fragmentPath = luaL_checkstring(L, 3);
+        if (g_engine->getRenderer()) {
+            bool success = g_engine->getRenderer()->loadShader(name, vertexPath, fragmentPath);
+            lua_pushboolean(L, success);
+        } else {
+            lua_pushboolean(L, false);
+        }
+        return 1;
+    }
+
+    static int l_useShader(lua_State* L) {
+        const char* name = luaL_checkstring(L, 1);
+        if (g_engine->getRenderer()) {
+            g_engine->getRenderer()->useShader(name);
+        }
+        return 0;
+    }
+
     static int l_mesh_gc(lua_State* L) {
         std::shared_ptr<Mesh>* m = (std::shared_ptr<Mesh>*)luaL_checkudata(L, 1, "Mesh");
         m->~shared_ptr();
@@ -818,6 +839,8 @@ public:
         lua_register(L, "require", l_require);
         lua_register(L, "loadMap", l_loadMap);
         lua_register(L, "clearScene", l_clearScene);
+        lua_register(L, "loadRendererShader", l_loadRendererShader);
+        lua_register(L, "useShader", l_useShader);
 
         registerKeyConstants();
     }

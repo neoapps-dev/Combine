@@ -5,21 +5,13 @@ ambientColor: 0.2,0.2,0.2,1.0
 cameraPosition: 0,2,5
 cameraRotation: -15,0,0
 cameraFov: 60.0
-light: directional
-  position: 50,50,50
-  direction: 0.3,0.6,0.7
-  color: 1,0.95,0.8,1
-  intensity: 3.0
-  range: 1000.0
-  spotAngle: 45.0
-
 light: point
-  position: 2,1,2
+  position: 2,10,2
   direction: 0,-1,0
   color: 1,0.8,0.6,1
-  intensity: 2.0
-  range: 5.0
-  spotAngle: 45.0
+  intensity: 1.0
+  range: 100.0
+  spotAngle: 90.0
 
 object: cube
   name: Ground
@@ -33,9 +25,10 @@ object: cube
   name: Player
   tag: player
   position: 0,0.5,0
-  rotation: 0,0,0
+  rotation: 1,1,1
   scale: 1,1,1
-  color: 0.2,0.4,0.8,1.0
+  color: 1.25,1.25,1.25,1.0
+  texture: textures/texture.jpg
 
 object: sphere
   name: Orb

@@ -1,0 +1,22 @@
+print("Loading custom shaders...")
+var shaderLoaded = loadRendererShader("wavy", "shaders/wavy.vert", "shaders/rainbow.frag")
+if (shaderLoaded) {
+    print("Custom shader loaded successfully!")
+    useShader("wavy")
+} else {
+    print("Using default shader (custom shaders not found)")
+}
+
+var cube = createCube("ShaderTestCube")
+cube.transform.position = Vector3(0, 0.5, 0)
+cube.color = Color(1.0, 0.5, 0.2, 1.0)
+scene.addEntity(cube)
+var light = Light()
+light.type = Light.Type.Point
+light.position = Vector3(2, 2, 2)
+light.color = Color(1.0, 1.0, 0.8, 1.0)
+light.intensity = 3.0
+light.range = 10.0
+scene.addLight(light)
+
+print("Shader test scene loaded!")

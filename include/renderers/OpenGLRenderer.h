@@ -25,6 +25,8 @@
 #include <unordered_map>
 #include <iostream>
 #include <vector>
+#include <fstream>
+#include <sstream>
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 namespace Combine {
@@ -60,6 +62,7 @@ private:
     bool vsyncEnabled = true;
     std::unordered_map<unsigned int, MeshBuffers> meshBufferCache;
     std::unordered_map<std::string, Texture> textureCache;
+    std::unordered_map<std::string, GLuint> shaderPrograms;
     unsigned int nextMeshId = 1;
     const char* vertexShaderSource = R"(
         #version 330 core
@@ -385,6 +388,7 @@ public:
         glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view"), 1, GL_FALSE, glm::value_ptr(view));
         glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
         glUniform3f(glGetUniformLocation(shaderProgram, "viewPos"), camera.position.x, camera.position.y, camera.position.z);
+        glUniform1f(glGetUniformLocation(shaderProgram, "time"), static_cast<float>(glfwGetTime()));
     }
 
     void renderMesh(Mesh* mesh, const std::vector<Light>& lights, const Color& ambient) override {
@@ -453,6 +457,67 @@ public:
 
     void setWireframe(bool enabled) override {
         wireframeMode = enabled;
+    }
+    
+    bool loadShader(const std::string& name, const std::string& vertexPath, const std::string& fragmentPath) override {
+        std::ifstream vFile(vertexPath);
+        std::ifstream fFile(fragmentPath);
+        
+        if (!vFile.is_open() || !fFile.is_open()) {
+            std::cerr << "Failed to open shader files: " << vertexPath << ", " << fragmentPath << std::endl;
+            return false;
+        }
+        
+        std::stringstream vStream, fStream;
+        vStream << vFile.rdbuf();
+        fStream << fFile.rdbuf();
+        
+        std::string vertexSource = vStream.str();
+        std::string fragmentSource = fStream.str();
+        
+        vFile.close();
+        fFile.close();
+        
+        GLuint vertexShader = compileShader(GL_VERTEX_SHADER, vertexSource.c_str());
+        GLuint fragmentShader = compileShader(GL_FRAGMENT_SHADER, fragmentSource.c_str());
+        
+        if (!vertexShader || !fragmentShader) {
+            if (vertexShader) glDeleteShader(vertexShader);
+            if (fragmentShader) glDeleteShader(fragmentShader);
+            return false;
+        }
+        
+        GLuint program = glCreateProgram();
+        glAttachShader(program, vertexShader);
+        glAttachShader(program, fragmentShader);
+        glLinkProgram(program);
+        
+        GLint success;
+        glGetProgramiv(program, GL_LINK_STATUS, &success);
+        if (!success) {
+            char infoLog[512];
+            glGetProgramInfoLog(program, 512, nullptr, infoLog);
+            std::cerr << "Shader linking error: " << infoLog << std::endl;
+            glDeleteProgram(program);
+            return false;
+        }
+        
+        glDeleteShader(vertexShader);
+        glDeleteShader(fragmentShader);
+        
+        shaderPrograms[name] = program;
+        return true;
+    }
+    
+    void useShader(const std::string& name) override {
+        auto it = shaderPrograms.find(name);
+        if (it != shaderPrograms.end()) {
+            glUseProgram(it->second);
+            glUniform1f(glGetUniformLocation(it->second, "time"), static_cast<float>(glfwGetTime()));
+        } else {
+            glUseProgram(shaderProgram);
+            glUniform1f(glGetUniformLocation(shaderProgram, "time"), static_cast<float>(glfwGetTime()));
+        }
     }
 
     void shutdown() override {

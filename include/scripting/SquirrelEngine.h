@@ -379,6 +379,29 @@ private:
         return 0;
     }
 
+    static SQInteger sq_loadRendererShader(HSQUIRRELVM v) {
+        const SQChar* name, *vertexPath, *fragmentPath;
+        sq_getstring(v, 2, &name);
+        sq_getstring(v, 3, &vertexPath);
+        sq_getstring(v, 4, &fragmentPath);
+        if (g_engine->getRenderer()) {
+            bool success = g_engine->getRenderer()->loadShader(std::string(name), std::string(vertexPath), std::string(fragmentPath));
+            sq_pushbool(v, success);
+        } else {
+            sq_pushbool(v, false);
+        }
+        return 1;
+    }
+
+    static SQInteger sq_useShader(HSQUIRRELVM v) {
+        const SQChar* name;
+        sq_getstring(v, 2, &name);
+        if (g_engine->getRenderer()) {
+            g_engine->getRenderer()->useShader(std::string(name));
+        }
+        return 0;
+    }
+
     static SQInteger sq_mesh_get(HSQUIRRELVM v) {
         std::shared_ptr<Mesh>* m;
         sq_getuserdata(v, 1, (SQUserPointer*)&m, nullptr);
@@ -845,6 +868,8 @@ public:
         registerFunction("require", sq_require);
         registerFunction("loadMap", sq_loadMap);
         registerFunction("clearScene", sq_clearScene);
+        registerFunction("loadRendererShader", sq_loadRendererShader);
+        registerFunction("useShader", sq_useShader);
 
         registerConstant("KEY_SPACE", static_cast<SQInteger>(KeyCode::Space));
         registerConstant("KEY_ESCAPE", static_cast<SQInteger>(KeyCode::Escape));

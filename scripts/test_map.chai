@@ -18,6 +18,15 @@ if (loadMap("test.comap")) {} else {
     error("Failed to load map!");
 }
 
+var shaderLoaded = loadRendererShader("default", "shaders/default.vert", "shaders/default.frag")
+loadRendererShader("wavy", "shaders/wavy.vert", "shaders/rainbow.frag")
+if (shaderLoaded) {
+    print("Custom shader loaded successfully!")
+    useShader("default")
+    useShader("wavy")
+} else {
+    print("Using default shader (custom shaders not found)")
+}
 global scene = getScene();
 global cam = getCamera();
 global moveSpeed = 5.0;

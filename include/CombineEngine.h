@@ -27,6 +27,9 @@
 #include <chrono>
 #include <algorithm>
 #include <cmath>
+#include <fstream>
+#include <sstream>
+#include <iostream>
 
 namespace Combine {
 
@@ -318,6 +321,48 @@ private:
     std::unordered_map<std::type_index, std::shared_ptr<Component>> components;
 };
 
+class Shader {
+public:
+    std::string name;
+    std::string vertexPath;
+    std::string fragmentPath;
+    std::string vertexSource;
+    std::string fragmentSource;
+    bool loaded = false;
+    
+    Shader() = default;
+    Shader(const std::string& name, const std::string& vertexPath, const std::string& fragmentPath) 
+        : name(name), vertexPath(vertexPath), fragmentPath(fragmentPath) {}
+    
+    bool loadFromFile() {
+        std::ifstream vFile(vertexPath);
+        std::ifstream fFile(fragmentPath);
+        
+        if (!vFile.is_open() || !fFile.is_open()) {
+            std::cerr << "Failed to load shader files: " << vertexPath << ", " << fragmentPath << std::endl;
+            return false;
+        }
+        
+        std::stringstream vStream, fStream;
+        vStream << vFile.rdbuf();
+        fStream << fFile.rdbuf();
+        
+        vertexSource = vStream.str();
+        fragmentSource = fStream.str();
+        
+        vFile.close();
+        fFile.close();
+        
+        loaded = true;
+        return true;
+    }
+    
+    static std::shared_ptr<Shader> create(const std::string& name, const std::string& vertexPath, const std::string& fragmentPath) {
+        auto shader = std::make_shared<Shader>(name, vertexPath, fragmentPath);
+        return shader;
+    }
+};
+
 struct Vertex {
     Vector3 position;
     Vector3 normal;
@@ -328,7 +373,6 @@ struct Vertex {
     Vertex(const Vector3& pos) : position(pos), color(Color::white()) {}
     Vertex(const Vector3& pos, const Vector3& norm) : position(pos), normal(norm), color(Color::white()) {}
     Vertex(const Vector3& pos, const Vector3& norm, const Vector2& uv) : position(pos), normal(norm), texCoord(uv), color(Color::white()) {}
-    Vertex(const Vector3& pos, const Vector3& norm, const Vector2& uv, const Color& col) : position(pos), normal(norm), texCoord(uv), color(col) {}
 };
 
 class Mesh : public Entity {
@@ -537,6 +581,7 @@ class Scene {
 public:
     std::vector<std::shared_ptr<Entity>> entities;
     std::vector<Light> lights;
+    std::vector<std::shared_ptr<Shader>> shaders;
     Camera camera;
     Color ambientColor;
     
@@ -574,6 +619,17 @@ public:
         lights.push_back(light);
     }
     
+    void addShader(std::shared_ptr<Shader> shader) {
+        shaders.push_back(shader);
+    }
+    
+    std::shared_ptr<Shader> getShaderByName(const std::string& name) {
+        for (auto& shader : shaders) {
+            if (shader->name == name) return shader;
+        }
+        return nullptr;
+    }
+    
     void update(float deltaTime) {
         for (auto& entity : entities) {
             if (entity->active) {
@@ -609,6 +665,8 @@ public:
     virtual int getHeight() const = 0;
     virtual void setVSync(bool enabled) = 0;
     virtual void setWireframe(bool enabled) = 0;
+    virtual bool loadShader(const std::string& name, const std::string& vertexPath, const std::string& fragmentPath) = 0;
+    virtual void useShader(const std::string& name) = 0;
 };
 
 class IScriptEngine {

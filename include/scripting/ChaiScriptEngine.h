@@ -170,6 +170,14 @@ public:
         chai->add(chaiscript::fun([](Camera* c) -> float& { return c->nearPlane; }), "nearPlane");
         chai->add(chaiscript::fun([](Camera* c) -> float& { return c->farPlane; }), "farPlane");
         chai->add(chaiscript::fun([](Camera* c) -> Color& { return c->clearColor; }), "clearColor");
+        
+        chai->add(chaiscript::fun([](const std::string& name, const std::string& vertexPath, const std::string& fragmentPath) -> bool {
+            return g_engine->getRenderer()->loadShader(name, vertexPath, fragmentPath);
+        }), "loadRendererShader");
+        
+        chai->add(chaiscript::fun([](const std::string& name) {
+            g_engine->getRenderer()->useShader(name);
+        }), "useShader");
         chai->add(chaiscript::fun([](Camera& c) { return c.forward(); }), "forward");
         chai->add(chaiscript::fun([](Camera& c) { return c.right(); }), "right");
         chai->add(chaiscript::fun([](Camera& c) { return c.up(); }), "up");
